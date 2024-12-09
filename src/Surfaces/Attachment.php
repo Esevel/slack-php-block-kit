@@ -4,12 +4,7 @@ declare(strict_types=1);
 
 namespace SlackPhp\BlockKit\Surfaces;
 
-use SlackPhp\BlockKit\Blocks\Block;
-use SlackPhp\BlockKit\Collections\BlockCollection;
-use SlackPhp\BlockKit\Component;
-use SlackPhp\BlockKit\Property;
-use SlackPhp\BlockKit\Hydration\OmitType;
-use SlackPhp\BlockKit\Validation\{RequiresAllOf, UniqueIds, ValidCollection};
+use SlackPhp\BlockKit\{Element, HydrationData};
 
 /**
  * Attachments are a surface that represent secondary content within a message, and can only exist within a message.
@@ -19,36 +14,56 @@ use SlackPhp\BlockKit\Validation\{RequiresAllOf, UniqueIds, ValidCollection};
  * Attachments have other legacy attributes besides "color", but their use is discouraged. You can accomplish all of the
  * same things using blocks. If you want to set the legacy attributes, you can use `setExtra()`, inherited from Element.
  *
- * @see Component::extra()
+ * @see Element::setExtra()
  * @see https://api.slack.com/messaging/composing/layouts#attachments
  */
-#[OmitType, RequiresAllOf('blocks')]
 class Attachment extends Surface
 {
-    #[Property, ValidCollection(50), UniqueIds]
-    public BlockCollection $blocks;
-
-    #[Property]
-    public ?string $color;
+    /** @var string */
+    private $color;
 
     /**
-     * @param BlockCollection|array<Block|string>|null $blocks
+     * Returns the attachment as a new Message with the attachment attached.
+     *
+     * @return Message
      */
-    public function __construct(BlockCollection|array|null $blocks = null, ?string $color = null)
+    public function asMessage(): Message
     {
-        parent::__construct($blocks);
-        $this->color($color);
+        return Message::new()->addAttachment($this);
     }
 
     /**
      * Sets the hex color of the attachment. It Appears as a border along the left side.
      *
      * This makes sure the `#` is included in the color, in case you forget it.
+     *
+     * @param string $color
+     * @return Attachment
      */
-    public function color(?string $color): self
+    public function color(string $color): self
     {
-        $this->color = $color ? '#' . ltrim($color, '#') : null;
+        $this->color = '#' . ltrim($color, '#');
 
         return $this;
+    }
+
+    public function toArray(): array
+    {
+        $data = parent::toArray();
+
+        if (!empty($this->color)) {
+            $data['color'] = $this->color;
+        }
+
+        return $data;
+    }
+
+    protected function hydrate(HydrationData $data): void
+    {
+        if ($data->has('color')) {
+            $this->color($data->useValue('color'));
+        }
+
+        parent::hydrate($data);
     }
 }

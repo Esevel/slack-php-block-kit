@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace SlackPhp\BlockKit\Blocks\Virtual;
 
-use SlackPhp\BlockKit\Blocks\Block;
-use SlackPhp\BlockKit\Blocks\Divider;
 use SlackPhp\BlockKit\Blocks\Section;
-use Traversable;
+use SlackPhp\BlockKit\Exception;
 
 /**
  * A virtual, multi-block element using sections to create a two-column table.
@@ -17,21 +15,29 @@ use Traversable;
  */
 class TwoColumnTable extends VirtualBlock
 {
-    public ?bool $borders;
+    /** @var Section|null */
+    private $header;
+
+    /** @var bool */
+    private $hasRows = false;
 
     /**
-     * @param array<string[]>|array<string, string>|null $rows
-     * @param array<string>|null $cols
+     * @param string|null $blockId
+     * @param array|null $rows
+     * @param array|null $cols
+     * @param string|null $caption
      */
     public function __construct(
+        ?string $blockId = null,
         ?array $rows = null,
         ?array $cols = null,
-        ?bool $borders = null,
-        ?string $blockId = null,
+        ?string $caption = null
     ) {
-        parent::__construct();
-        $this->blockId($blockId);
-        $this->borders($borders);
+        parent::__construct($blockId);
+
+        if (!empty($caption)) {
+            $this->caption($caption);
+        }
 
         if (!empty($cols)) {
             [$left, $right] = $cols;
@@ -44,25 +50,58 @@ class TwoColumnTable extends VirtualBlock
     }
 
     /**
+     * Sets a caption (text element) at the top of the table.
+     *
+     * @param string $caption
+     * @return self
+     */
+    public function caption(string $caption): self
+    {
+        if (!$this->header) {
+            $this->header = new Section();
+            $this->prependBlock($this->header);
+        }
+
+        $this->header->mrkdwnText($caption);
+
+        return $this;
+    }
+
+    /**
      * Sets the left and right column headers.
      *
      * Automatically applies a bold to the header text elements.
+     *
+     * @param string $left
+     * @param string $right
+     * @return self
      */
     public function cols(string $left, string $right): self
     {
-        $this->prepend(new Section(fields: ["*{$left}*", "*{$right}*"]));
+        if (!$this->header) {
+            $this->header = new Section();
+            $this->prependBlock($this->header);
+        }
+
+        $this->header->fieldList(["*{$left}*", "*{$right}*"]);
 
         return $this;
     }
 
     /**
      * Adds a row (with a left and right value) to the table.
+     *
+     * @param string $left
+     * @param string $right
+     * @return TwoColumnTable
      */
     public function row(string $left, string $right): self
     {
-        $this->append(new Section(fields: [$left, $right]));
+        $row = new Section();
+        $row->fieldList([$left, $right]);
+        $this->hasRows = true;
 
-        return $this;
+        return $this->appendBlock($row);
     }
 
     /**
@@ -70,11 +109,12 @@ class TwoColumnTable extends VirtualBlock
      *
      * Supports list-format (e.g., [[$left, $right], ...]) or map-format (e.g., [$left => $right, ...]) as input.
      *
-     * @param array<string[]>|array<string, string> $rows
+     * @param array $rows
+     * @return TwoColumnTable
      */
     public function rows(array $rows): self
     {
-        if (array_is_list($rows)) {
+        if (isset($rows[0])) {
             foreach ($rows as [$left, $right]) {
                 $this->row($left, $right);
             }
@@ -87,24 +127,12 @@ class TwoColumnTable extends VirtualBlock
         return $this;
     }
 
-    public function borders(?bool $borders): self
+    public function validate(): void
     {
-        $this->borders = $borders;
-
-        return $this;
-    }
-
-    public function getIterator(): Traversable
-    {
-        if ($this->borders) {
-            yield new Divider();
+        if (!$this->hasRows) {
+            throw new Exception('TwoColumnTable must contain rows');
         }
 
-        foreach (parent::getIterator() as $block) {
-            yield $block;
-            if ($this->borders) {
-                yield new Divider();
-            }
-        }
+        parent::validate();
     }
 }

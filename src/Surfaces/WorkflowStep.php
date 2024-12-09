@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace SlackPhp\BlockKit\Surfaces;
 
-use SlackPhp\BlockKit\Blocks\Block;
-use SlackPhp\BlockKit\Collections\BlockCollection;
-use SlackPhp\BlockKit\Property;
-use SlackPhp\BlockKit\PrivateMetadata;
-use SlackPhp\BlockKit\Validation\RequiresAllOf;
+use SlackPhp\BlockKit\Blocks\Input;
+use SlackPhp\BlockKit\HydrationData;
 
 /**
  * A Workflow Step surface are a special case of a Modal, with limited properties, and are used to configure an app's
@@ -16,33 +13,63 @@ use SlackPhp\BlockKit\Validation\RequiresAllOf;
  *
  * @see https://api.slack.com/workflows/steps#handle_config_view
  */
-#[RequiresAllOf('blocks')]
 class WorkflowStep extends Surface
 {
-    use HasIdAndMetadata;
+    /** @var string */
+    private $privateMetadata;
 
-    #[Property('submit_disabled')]
-    public ?bool $submitDisabled;
+    /** @var string */
+    private $callbackId;
 
-    /**
-     * @param BlockCollection|array<Block|string>|null $blocks
-     */
-    public function __construct(
-        BlockCollection|array|null $blocks = null,
-        ?string $callbackId = null,
-        PrivateMetadata|array|string|null $privateMetadata = null,
-        ?bool $submitDisabled = null,
-    ) {
-        parent::__construct($blocks);
-        $this->callbackId($callbackId);
-        $this->privateMetadata($privateMetadata);
-        $this->submitDisabled($submitDisabled);
-    }
-
-    public function submitDisabled(?bool $submitDisabled): self
+    public function callbackId(string $callbackId): self
     {
-        $this->submitDisabled = $submitDisabled;
+        $this->callbackId = $callbackId;
 
         return $this;
+    }
+
+    public function privateMetadata(string $privateMetadata): self
+    {
+        $this->privateMetadata = $privateMetadata;
+
+        return $this;
+    }
+
+    public function newInput(?string $blockId = null): Input
+    {
+        $block = new Input($blockId);
+        $this->add($block);
+
+        return $block;
+    }
+
+    public function toArray(): array
+    {
+        $data = [];
+
+        if (!empty($this->callbackId)) {
+            $data['callback_id'] = $this->callbackId;
+        }
+
+        if (!empty($this->privateMetadata)) {
+            $data['private_metadata'] = $this->privateMetadata;
+        }
+
+        $data += parent::toArray();
+
+        return $data;
+    }
+
+    protected function hydrate(HydrationData $data): void
+    {
+        if ($data->has('callback_id')) {
+            $this->callbackId($data->useValue('callback_id'));
+        }
+
+        if ($data->has('private_metadata')) {
+            $this->privateMetadata($data->useValue('private_metadata'));
+        }
+
+        parent::hydrate($data);
     }
 }

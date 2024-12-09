@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace SlackPhp\BlockKit\Surfaces;
 
-use SlackPhp\BlockKit\Blocks\Block;
-use SlackPhp\BlockKit\Collections\BlockCollection;
-use SlackPhp\BlockKit\Parts\PlainText;
-use SlackPhp\BlockKit\Property;
-use SlackPhp\BlockKit\PrivateMetadata;
-use SlackPhp\BlockKit\Validation\{RequiresAllOf, ValidationException, ValidString};
-use SlackPhp\BlockKit\Type;
+use SlackPhp\BlockKit\{
+    Exception,
+    HydrationData,
+    Partials\PlainText,
+    Type,
+};
 
 /**
  * Modals provide focused spaces ideal for requesting and collecting data from users, or temporarily displaying dynamic
@@ -18,85 +17,145 @@ use SlackPhp\BlockKit\Type;
  *
  * @see https://api.slack.com/surfaces
  */
-#[RequiresAllOf('blocks', 'title')]
 class Modal extends View
 {
-    #[Property, ValidString(24)]
-    public ?PlainText $title;
+    private const MAX_LENGTH_TITLE = 24;
 
-    #[Property, ValidString(24)]
-    public ?PlainText $submit;
+    /** @var PlainText */
+    private $title;
 
-    #[Property, ValidString(24)]
-    public ?PlainText $close;
+    /** @var PlainText */
+    private $submit;
 
-    #[Property('clear_on_close')]
-    public ?bool $clearOnClose;
+    /** @var PlainText */
+    private $close;
 
-    #[Property('notify_on_close')]
-    public ?bool $notifyOnClose;
+    /** @var bool */
+    private $clearOnClose;
 
-    /**
-     * @param BlockCollection|array<Block|string>|null $blocks
-     */
-    public function __construct(
-        BlockCollection|array|null $blocks = null,
-        PlainText|string|null $title = null,
-        ?string $callbackId = null,
-        ?string $externalId = null,
-        PrivateMetadata|array|string|null $privateMetadata = null,
-        PlainText|string|null $submit = null,
-        PlainText|string|null $close = null,
-        ?bool $clearOnClose = null,
-        ?bool $notifyOnClose = null,
-    ) {
-        parent::__construct($blocks, $callbackId, $externalId, $privateMetadata);
-        $this->title($title);
-        $this->submit($submit);
-        $this->close($close);
-        $this->clearOnClose($clearOnClose);
-        $this->notifyOnClose($notifyOnClose);
-        $this->validator->addPreValidation(function () {
-            $inputs = $this->blocks->filter(fn (Block $b) => $b->type === Type::INPUT);
-            if (!empty($inputs) && empty($this->submit)) {
-                throw new ValidationException(
-                    'Modals must have a "submit" button defined if they contain any "input" blocks',
-                );
-            }
-        });
-    }
+    /** @var bool */
+    private $notifyOnClose;
 
-    public function title(PlainText|string|null $title): self
+    public function setTitle(PlainText $title): self
     {
-        $this->title = PlainText::wrap($title);
+        $this->title = $title->setParent($this);
 
         return $this;
     }
 
-    public function submit(PlainText|string|null $submit): self
+    public function setSubmit(PlainText $title): self
     {
-        $this->submit = PlainText::wrap($submit);
-        return $this;
-    }
-
-    public function close(PlainText|string|null $close): self
-    {
-        $this->close = PlainText::wrap($close);
+        $this->submit = $title->setParent($this);
 
         return $this;
     }
 
-    public function clearOnClose(?bool $clearOnClose): self
+    public function setClose(PlainText $title): self
+    {
+        $this->close = $title->setParent($this);
+
+        return $this;
+    }
+
+    public function title(string $title): self
+    {
+        return $this->setTitle(new PlainText($title));
+    }
+
+    public function submit(string $submit): self
+    {
+        return $this->setSubmit(new PlainText($submit));
+    }
+
+    public function close(string $close): self
+    {
+        return $this->setClose(new PlainText($close));
+    }
+
+    public function clearOnClose(bool $clearOnClose): self
     {
         $this->clearOnClose = $clearOnClose;
 
         return $this;
     }
 
-    public function notifyOnClose(?bool $notifyOnClose): self
+    public function notifyOnClose(bool $notifyOnClose): self
     {
         $this->notifyOnClose = $notifyOnClose;
 
         return $this;
+    }
+
+    public function validate(): void
+    {
+        parent::validate();
+
+        if (empty($this->title)) {
+            throw new Exception('Modals must have a "title"');
+        }
+        $this->title->validateWithLength(self::MAX_LENGTH_TITLE);
+
+        $hasInputs = false;
+        foreach ($this->getBlocks() as $block) {
+            if ($block->getType() === Type::INPUT) {
+                $hasInputs = true;
+                break;
+            }
+        }
+        if ($hasInputs && empty($this->submit)) {
+            throw new Exception('Modals must have a "submit" button defined if they contain any "input" blocks');
+        }
+    }
+
+    public function toArray(): array
+    {
+        $data = [];
+
+        $data['title'] = $this->title->toArray();
+
+        if (!empty($this->submit)) {
+            $data['submit'] = $this->submit->toArray();
+        }
+
+        if (!empty($this->close)) {
+            $data['close'] = $this->close->toArray();
+        }
+
+        if (!empty($this->clearOnClose)) {
+            $data['clear_on_close'] = $this->clearOnClose;
+        }
+
+        if (!empty($this->notifyOnClose)) {
+            $data['notify_on_close'] = $this->notifyOnClose;
+        }
+
+        $data += parent::toArray();
+
+        return $data;
+    }
+
+    protected function hydrate(HydrationData $data): void
+    {
+        if ($data->has('title')) {
+            $this->setTitle(PlainText::fromArray($data->useElement('title')));
+        }
+
+        if ($data->has('submit')) {
+            $this->setSubmit(PlainText::fromArray($data->useElement('submit')));
+        }
+
+        if ($data->has('close')) {
+            $this->setClose(PlainText::fromArray($data->useElement('close')));
+        }
+
+        if ($data->has('clear_on_close')) {
+            $this->clearOnClose($data->useValue('clear_on_close'));
+        }
+
+        if ($data->has('notify_on_close')) {
+            $this->notifyOnClose($data->useValue('notify_on_close'));
+        }
+
+        parent::hydrate($data);
     }
 }

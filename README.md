@@ -10,13 +10,13 @@
 
 <p align="center">
   <a href="http://php.net/">
-    <img src="https://img.shields.io/badge/code-php%208.1-8892bf.svg" alt="Coded in PHP 8.1">
+    <img src="https://img.shields.io/badge/code-php7-8892bf.svg" alt="Coded in PHP 7">
   </a>
   <a href="https://packagist.org/packages/slack-php/slack-block-kit">
     <img src="https://img.shields.io/packagist/v/slack-php/slack-block-kit.svg" alt="Packagist Version">
   </a>
-  <a href="https://actions-badge.atrox.dev/slack-php/slack-php-block-kit/goto?ref=main">
-    <img alt="Build Status" src="https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Fslack-php%2Fslack-php-block-kit%2Fbadge%3Fref%3Dmain&style=flat" />
+  <a href="https://github.com/slack-php/slack-php-block-kit/actions">
+    <img src="https://img.shields.io/github/workflow/status/slack-php/slack-php-block-kit/PHP%20Composer.svg" alt="Build Status">
   </a>
 </p>
 
@@ -37,18 +37,18 @@ reverse, meaning you can "hydrate" message/modal JSON into an object hierarchy.
 
 ## Block Kit Concepts
 
-This library helps you build Slack messages and modals programmatically and dynamically in your code, but you need to
-know how they work generally first. The library does try to prevent you from doing things you are not permitted to do
-in Block Kit, but it may not validate against every single or condition.
+This library helps you build Slack messages programmatically and dynamically in your code, but you need to know how they
+work generally first. The library does try to prevent you from doing things you are not permitted to do in Block Kit,
+but it does not validate or guard against every single rule.
 
 You may want to review the following concepts in the Slack documentation:
 
 - [Surfaces](https://api.slack.com/surfaces) – There are 3 main types: Message, Modal, and App Home
 - [Blocks](https://api.slack.com/reference/block-kit/blocks) – Includes _section_, _context_, _actions_, and more
-- [Block Elements](https://api.slack.com/reference/block-kit/block-elements) – Includes buttons, menus, text inputs, and other interactive components. We call all of these "Elements" in this library.
-- [Composition Objects](https://api.slack.com/reference/block-kit/composition-objects) – We call these "Parts" in the library
+- [Interactive Components](https://api.slack.com/reference/block-kit/interactive-components) – We call these "Inputs" in this library
+- [Composition Objects](https://api.slack.com/reference/block-kit/composition-objects) – We call these "Partials" ion the library
 
-In general, we refer to ALL of these different things in Block Kit collectively as "components".
+In general, we refer to all of the different things in Block Kit collectively as "elements".  
 
 ## Installation
 
@@ -60,140 +60,95 @@ composer require slack-php/slack-block-kit
 
 Then include the Composer-generated autoloader in your project's initialization code.
 
-**Note**: This library is built for PHP 8.1+.
-
-_[Version 1](https://github.com/slack-php/slack-php-block-kit/tree/v1) of this library supports version 7.3/7.4._
+_Note: This library is built for PHP 7.3+._
 
 ## Basic Usage
 
-This library supports an intuitive syntax for composing Slack surfaces (e.g., messages, modals) that utilizes PHP 8's 
-named parameters feature.
-
-```php
-<?php
-
-use SlackPhp\BlockKit\Surfaces\Message;
-use SlackPhp\BlockKit\Blocks\Section;
-use SlackPhp\BlockKit\Blocks\Divider;
-use SlackPhp\BlockKit\Blocks\BlockImage;
-
-// ...
-
-// CONSTRUCTION
-$msg = new Message(
-    ephemeral: true,
-    blocks: [
-        new Section('Don\'t you just love XKCD?'),
-        new Divider(),
-        new BlockImage(
-            title: 'Team Chat',
-            imageUrl: 'https://imgs.xkcd.com/comics/team_chat.png',
-            altText: 'Comic about the stubbornness of some people switching chat clients',
-        ),
-    ]
-);
-
-// VALIDATION
-// Throws a ValidationException if any of the components are invalid or missing required properties.
-$msg->validate();
-
-// OUTPUT
-// To convert to JSON (e.g., to send to Slack API, webhook, or response_url), use PHP's `json_encode()` function.
-echo json_encode($msg);
-// OR you can use the surfaces's `toJson()` method, which also includes a convenience parameter for pretty printing.
-echo $msg->toJson(true);
-// OR you can just convert to an array and do something else with the data.
-print_r($msg->toArray());
-```
-
-### The `Kit` Façade
-
-The `Kit` class acts as a façade for the whole library's set of components and has factory methods for each one. It
-allows you to limit the number of classes you have to import to build a message (or other surface).
-
-Each factory method has the same parameters as the original component's constructor.
+This library supports an intuitive and fluid syntax for composing Slack surfaces (e.g., messages, modals). The `Kit`
+class acts as a façade to the library, and let's you start new messages/modals.
 
 ```php
 <?php
 
 use SlackPhp\BlockKit\Kit;
+use SlackPhp\BlockKit\Surfaces\Message;
 
 // ...
 
-$msg = Kit::message(
-    ephemeral: true,
-    blocks: [
-        Kit::section('Don\'t you just love XKCD?'),
-        Kit::divider(),
-        Kit::blockImage(
-            title: 'Team Chat',
-            imageUrl: 'https://imgs.xkcd.com/comics/team_chat.png',
-            altText: 'Comic about the stubbornness of some people switching chat clients',
-        ),
-    ]
-);
+// You can start a message from the `Kit` class.
+$msg = Kit::newMessage();
+// OR via the surface class's "new" method.
+$msg = Message::new();
+
+// Then you can add blocks using the surface's available methods.
+$msg->text('Don\'t you just love XKCD?');
+$msg->divider();
+$msg->newImage()
+    ->title('Team Chat')
+    ->url('https://imgs.xkcd.com/comics/team_chat.png')
+    ->altText('Comic about the stubbornness of some people switching chat clients');
+
+// To convert to JSON (to send to Slack API, webhook, or response_url), use PHP's `json_encode` function.
+echo json_encode($msg);
+// OR you can use the surfaces's `toJson` method, which also includes a convenience parameter for pretty printing.
+echo $msg->toJson(true);
 ```
 
 ### Fluent Interface
 
-If named parameters aren't your jam, there is another way to set a component's properties, through the setter methods.
-Each component has chainable setter methods for each of its properties, which allows for a fluent-style interface.
-
-```php
-$msg = Kit::message()
-    ->ephemeral()
-    ->blocks(
-        Kit::section('Don\'t you just love XKCD?'),
-        Kit::divider(),
-        Kit::blockImage()
-            ->title('Team Chat')
-            ->imageUrl('https://imgs.xkcd.com/comics/team_chat.png')
-            ->altText('Comic about the stubbornness of some people switching chat clients')
-        ),
-    );
-```
-
-The fluent syntax is not dependent on the `Kit` façade. Component classes have a static `new()` method that can be
-used for chaining as well.
+When using the fluent interface, every method that sets a property or adds a sub-element returns the original element's
+object, so you can chain additional method calls.
 
 ```php
 $msg = Message::new()
-    ->ephemeral()
-    ->blocks(
-        Section::new('Don\'t you just love XKCD?'),
-        Divider::new(),
-        BlockImage::new()
+    ->text('Don\'t you just love XKCD?');
+    ->divider();
+```
+
+Methods with a `new` prefix will return the new element's object, so be careful with how you are using the fluent
+interface in those cases.
+
+```php
+// Correctly renders the whole message.
+$msg = Message::new()
+    ->text('Don\'t you just love XKCD?')
+    ->divider();
+$msg->newImage()
+    ->title('Team Chat')
+    ->url('https://imgs.xkcd.com/comics/team_chat.png')
+    ->altText('Comic about the stubbornness of some people switching chat clients');
+echo json_encode($msg);
+// YAY!
+
+// INCORRECT: Renders just the image, because only that element gets stored in the variable.
+$msg = Message::new()
+    ->text('Don\'t you just love XKCD?')
+    ->divider()
+    ->newImage()
+        ->title('Team Chat')
+        ->url('https://imgs.xkcd.com/comics/team_chat.png')
+        ->altText('Comic about the stubbornness of some people switching chat clients');
+echo json_encode($msg);
+// WHOOPS!
+```
+
+#### Tapping
+
+Tapping is a way to keep the fluent interface going, but makes sure the whole message is preserved.
+
+```php
+// Correctly renders the whole message, by using tap()
+$msg = Message::new()
+    ->text('Don\'t you just love XKCD?')
+    ->divider()
+    ->tap(function (Message $msg) {
+        $msg->newImage()
             ->title('Team Chat')
-            ->imageUrl('https://imgs.xkcd.com/comics/team_chat.png')
-            ->altText('Comic about the stubbornness of some people switching chat clients')
-        ),
-    );
-```
-
-#### Null Values
-
-All properties are considered as null/empty until set.
-
-You can also set a property explicitly to null to remove its value (e.g., from a component you created from existing data).
-
-```php
-$section->accessory(null);
-```
-
-Finally, null values are allowed in lists of blocks, elements, options, etc., so it's safe to use conditional items.
-
-```php
-$msg = Kit::message(
-    blocks: [
-        Kit::section('Don\'t you just love XKCD?'),
-        ($includeDivider) ? Kit::divider() : null,
-        Kit::blockImage(
-            title: 'Team Chat',
-            imageUrl: 'https://imgs.xkcd.com/comics/team_chat.png',
-            altText: 'Comic about the stubbornness of some people switching chat clients',
-        ),
-    ]
-);
+            ->url('https://imgs.xkcd.com/comics/team_chat.png')
+            ->altText('Comic about the stubbornness of some people switching chat clients');
+    });
+echo json_encode($msg);
+// YAY!
 ```
 
 ### Preview in Block Kit Builder
@@ -206,18 +161,15 @@ preview or your message/surface in the browser via their interactive tool. This 
 rendered in a Slack client.
 
 ```php
-$msg = Kit::message(
-    ephemeral: true,
-    blocks: [
-        Kit::section('Don\'t you just love XKCD?'),
-        Kit::divider(),
-        Kit::blockImage(
-            title: 'Team Chat',
-            imageUrl: 'https://imgs.xkcd.com/comics/team_chat.png',
-            altText: 'Comic about the stubbornness of some people switching chat clients',
-        ),
-    ]
-);
+$msg = Kit::newMessage()
+    ->text('Don\'t you just love XKCD?')
+    ->divider()
+    ->tap(function (Message $msg) {
+        $msg->newImage()
+            ->title('Team Chat')
+            ->url('https://imgs.xkcd.com/comics/team_chat.png')
+            ->altText('Comic about the stubbornness of some people switching chat clients');
+    });
 
 echo Kit::preview($msg);
 ```
@@ -234,7 +186,7 @@ It will show up in the Block Kit Builder looking something like this:
 
 ![Screenshot of rendered message in Block Kit Builder](block-kit-screenshot.png)
 
-### Component Hydration
+### Surface Hydration
 
 Some Slack application integrations (such as with Modals) require receiving the JSON of an existing surface and then 
 modifying or replacing that surface with another. You can "hydrate" the JSON of a surface (or element) into its object
@@ -266,30 +218,24 @@ $message = Message::fromJson($messageJson);
 
 ### Message Formatting
 
-The `Md` class exists to provide helpers for formatting "mrkdwn" text. These helpers can be used so that you
+The `Formatter` class exists to provide helpers for formatting "mrkdwn" text. These helpers can be used so that you
 don't have to have the Slack mrkdwn syntax memorized. Also, these functions will properly escape `<`, `>`, and `&`
 characters automatically, if it's needed.
 
 Example:
 ```php
 // Note: $event is meant to represent some kind of DTO from your own application.
-$md = Kit::md();
-$msg = Kit::message(
-    blocks: [
-        Kit::section(
-            text: $md->sub(
-                'Hello, {audience}! On {date}, {host} will be hosting an AMA in the {channel} channel at {time}.',
-                [
-                    'audience' => $md->atHere(),
-                    'date'     => $md->date($event->timestamp),
-                    'host'     => $md->user($event->hostId),
-                    'channel'  => $md->channel($event->channelId),
-                    'time'     => $md->time($event->timestamp),
-                ]
-            )
-        )
+$fmt = Kit::formatter();
+$msg = Kit::newMessage()->text($fmt->sub(
+    'Hello, {audience}! On {date}, {host} will be hosting an AMA in the {channel} channel at {time}.',
+    [
+        'audience' => $fmt->atHere(),
+        'date'     => $fmt->date($event->timestamp),
+        'host'     => $fmt->user($event->hostId),
+        'channel'  => $fmt->channel($event->channelId),
+        'time'     => $fmt->time($event->timestamp),
     ]
-);
+));
 ```
 
 Example Result:
@@ -307,51 +253,67 @@ Example Result:
 }
 ```
 
-## Virtual Blocks
+## Virtual Elements
 
-In addition to the standard blocks, the following are virtual/custom blocks composed of one or
-more other blocks:
+In addition to the standard Block Kit elements, the following are virtual/custom elements composed of one or
+more blocks:
 
 * `TwoColumnTable` - Uses Sections with Fields to create a two-column table with an optional header.
-* `CodeBlock` - Uses Sections to create a code block with an optional header.
 
 ## Class Structure
 
-- `Surface`s, `Block`s, `Element`s, and `Part`s are all types of Block Kit `Component`s.
-- The `Kit` façade can be used as a factory to create any `Component`.
-- `Component`s contains properties and sub-`Component`s that define their appearance and behavior.
-- `Part`s are repeated patterns that form the properties of other `Component`s.
-- `Surface`s contain one or more `Block`s.
-- `Block`s contain one or more `Element`s.
-- Most `Element`s are interactive in some way.
-- Many `Element`s are also `Input`s that receive user input.
+The `Kit` façade provides ways to create _surfaces_. Surfaces contain one or more _blocks_. _Blocks_ are the primary
+element of the Block Kit. Blocks contain other elements, including other blocks, _inputs_ (interactive elements), and
+_partials_ (element parts that are not uniquely identifiable).
 
-![UML diagram for slack-block-kit](https://yuml.me/369b7a0f.png)
+![UML diagram for slack-block-kit](https://yuml.me/55e7f996.png)
 
 <details>
 <summary>See the YUML</summary>
 <pre>
-[Kit]-creates>[Component]
+[Kit]-creates>[Surface]
 [Surface]^[Message]
 [Surface]^[Modal]
 [Surface]^[AppHome]
 [Surface]^[Attachment]
-[Component]^[Surface]
-[Component]^[Block]
-[Component]^[Element]
-[Component]^[Part]
-[Component]<>->[Part]
+[Element]^[Surface]
+[Element]^[Block]
+[Element]^[Input]
+[Element]^[Partial]
 [Surface]<>->[Block]
 [Message]<>->[Attachment]
-[Block]<>->[Element]
-[Element]^[Input]
-[Element]-[note:Examples: Button, OverflowMenu {bg:cornsilk}]
-[Input]-[note:Examples: Select Menu, DatePicker {bg:cornsilk}]
-[Part]-[note: Examples: Text, Fields {bg:cornsilk}]
-[Block]-[note: Examples: Section, Actions {bg:cornsilk}]
+[Block]<>->[Input]
+[Block]<>->[Partial]
+[Input]-[note:Examples: Button
+DatePicker {bg:cornsilk}]
+[Partial]-[note: Examples: Text
+Fields {bg:cornsilk}]
+[Block]-[note: Examples: Section
+Actions {bg:cornsilk}]
 </pre>
 </details>
 
 ### Contributions
 
-Contributions welcome to support new elements, add tests, improve code, etc.
+Contributions welcome to support new elements, add tests, improve, etc.
+
+When implementing elements, to fit within the existing DSL, consider these points:
+
+- To set instantiated sub-element objects, provide a `set`-prefixed setter (e.g., `setText(Text $text): self`).
+    - Should return `self` to support chaining.
+    - Should set the parent (e.g., `setParent()`) of the sub-element to `$this`.
+- To set simple sub-element objects, provide a simple setter method (e.g., `title(string $title): self`).
+    - Should be in addition to the `set`-prefixed setter.
+    - Should be named after the property being set.
+    - Should return `self` to support chaining.
+    - Should have a maximum of 2 parameters.
+    - Should call the regular setter (e.g., `return $this->setText(new PlainText($title));`).
+- To set other non-element properties, provide a simple setter method (e.g., `url(string $url): self`).
+    - Should be named after the property being set.
+    - Should return `self` to support chaining.
+- To create new sub-elements attached to the current one, provide a `new`-prefixed factory method (e.g., `newImage(): Image`).
+    - Should return an instance of the sub-element.
+    - Should set the parent (e.g., `setParent()`) of the sub-element to `$this` before returning.
+    - Should support a `$blockId` parameter if it's a Block or an `$actionId` parameter if it's an Input element.
+- All element types should be defined in the `Type` class and registered in relevant constant lists to be appropriately validated.
+- If you implement a custom constructor for an element, make sure all the parameters are optional.

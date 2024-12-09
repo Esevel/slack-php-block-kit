@@ -7,7 +7,6 @@ namespace SlackPhp\BlockKit;
 use SlackPhp\BlockKit\Surfaces;
 
 use function rawurlencode;
-use function strtr;
 
 /**
  * Provides the ability to preview a surface in Slack's Block Kit Builder by generating a URL.
@@ -26,14 +25,10 @@ final class Previewer
         // Prepare/validate the surface.
         if ($surface instanceof Surfaces\Message) {
             // Block Kit Builder doesn't support message directives or fallback text.
-            $surface = (clone $surface)
-                ->directive(null)
-                ->text(null)
-                ->mrkdwn(null)
-                ->threadTs(null);
+            $surface = $surface->asPreviewableMessage();
         } elseif ($surface instanceof Surfaces\Attachment) {
             // Block Kit Builder can only show an attachment within a message.
-            $surface = (new Surfaces\Message())->attachments($surface);
+            $surface = $surface->asMessage();
         } elseif ($surface instanceof Surfaces\WorkflowStep) {
             throw new Exception('The "workflow_step" surface is not compatible with Block Kit Builder');
         }

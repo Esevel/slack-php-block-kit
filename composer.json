@@ -7,14 +7,14 @@
         "sort-packages": true
     },
     "require": {
-        "php": ">=8.1",
-        "ext-json": "*"
+        "php": ">=7.3",
+        "ext-json": "*",
+        "ext-mbstring": "*"
     },
     "require-dev": {
-        "ext-mbstring": "*",
-        "friendsofphp/php-cs-fixer": "^3.6",
-        "phpstan/phpstan": "^1.4",
-        "phpunit/phpunit": "^9.5"
+        "phpstan/phpstan": "^0.12.0",
+        "phpunit/phpunit": "^9.0",
+        "squizlabs/php_codesniffer": "^3.5"
     },
     "autoload": {
         "psr-4": {
@@ -28,9 +28,8 @@
     },
     "scripts": {
         "stan": "phpstan analyse -c phpstan.neon",
-        "style-fix": "php-cs-fixer fix",
-        "style-help": "php-cs-fixer describe",
-        "style-lint": "php-cs-fixer fix --dry-run --verbose",
+        "style-fix": "phpcbf --standard=PSR12 src tests",
+        "style-lint": "phpcs --standard=PSR12 src tests",
         "test": "phpunit --bootstrap=vendor/autoload.php --no-coverage tests",
         "test-all":  [
             "@style-lint",
@@ -38,9 +37,12 @@
             "@test-coverage"
         ],
         "test-ci": "XDEBUG_MODE=coverage phpunit --bootstrap=vendor/autoload.php --coverage-text --whitelist=src --do-not-cache-result tests",
-        "test-coverage": "XDEBUG_MODE=coverage phpunit --bootstrap=vendor/autoload.php --coverage-html=build/coverage --whitelist=src tests",
-        "test-debug": "XDEBUG_MODE=debug phpunit --bootstrap=vendor/autoload.php --no-coverage --debug tests",
+        "test-coverage": [
+            "XDEBUG_MODE=coverage phpunit --bootstrap=vendor/autoload.php --coverage-html=build/coverage --whitelist=src tests",
+            "open build/coverage/index.html"
+        ],
+        "test-debug": "phpunit --bootstrap=vendor/autoload.php --no-coverage --debug tests",
         "test-dox": "phpunit --bootstrap=vendor/autoload.php --no-coverage --testdox tests",
-        "test-gen": "php tests/bin/gen-test.php"
+        "test-gen": "php bin/gen-test.php"
     }
 }

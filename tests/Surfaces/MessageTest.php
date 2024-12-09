@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace SlackPhp\BlockKit\Tests\Surfaces;
 
-use SlackPhp\BlockKit\Surfaces\MessageDirective;
 use SlackPhp\BlockKit\Exception;
-use SlackPhp\BlockKit\Surfaces\Attachment;
 use SlackPhp\BlockKit\Surfaces\Message;
 use SlackPhp\BlockKit\Tests\TestCase;
+use SlackPhp\BlockKit\Type;
 
 /**
  * @covers \SlackPhp\BlockKit\Surfaces\Message
@@ -17,31 +16,41 @@ class MessageTest extends TestCase
 {
     private const TEST_BLOCKS = [
         [
-            'type' => 'section',
+            'type' => Type::SECTION,
             'text' => [
-                'type' => 'mrkdwn',
+                'type' => Type::MRKDWNTEXT,
                 'text' => 'foo',
             ],
         ],
         [
-            'type' => 'section',
+            'type' => Type::SECTION,
             'text' => [
-                'type' => 'mrkdwn',
+                'type' => Type::MRKDWNTEXT,
                 'text' => 'bar',
             ],
         ],
     ];
 
     private const TEST_ATTACHMENTS = [
-        ['blocks' => self::TEST_BLOCKS],
-        ['blocks' => self::TEST_BLOCKS],
+        [
+            'blocks' => self::TEST_BLOCKS,
+        ],
+        [
+            'blocks' => self::TEST_BLOCKS,
+        ],
     ];
 
     public function testCanApplyEphemeralDirectives(): void
     {
-        $msg = new Message(['foo', 'bar']);
-        $msg->ephemeral();
+        $msg = Message::new()
+            ->ephemeral()
+            ->text('foo')
+            ->text('bar');
+        $data = $msg->toArray();
 
+        $this->assertArrayHasKey('blocks', $data);
+        $this->assertArrayHasKey('response_type', $data);
+        $this->assertEquals('ephemeral', $data['response_type']);
         $this->assertJsonData([
             'response_type' => 'ephemeral',
             'blocks' => self::TEST_BLOCKS,
@@ -50,8 +59,10 @@ class MessageTest extends TestCase
 
     public function testCanApplyInChannelDirectives(): void
     {
-        $msg = new Message(['foo', 'bar']);
-        $msg->inChannel();
+        $msg = Message::new()
+            ->inChannel()
+            ->text('foo')
+            ->text('bar');
 
         $this->assertJsonData([
             'response_type' => 'in_channel',
@@ -61,8 +72,10 @@ class MessageTest extends TestCase
 
     public function testCanApplyReplaceOriginalDirectives(): void
     {
-        $msg = new Message(['foo', 'bar']);
-        $msg->replaceOriginal();
+        $msg = Message::new()
+            ->replaceOriginal()
+            ->text('foo')
+            ->text('bar');
 
         $this->assertJsonData([
             'replace_original' => 'true',
@@ -72,8 +85,25 @@ class MessageTest extends TestCase
 
     public function testCanApplyDeleteOriginalDirectives(): void
     {
-        $msg = new Message(['foo', 'bar']);
-        $msg->deleteOriginal();
+        $msg = Message::new()
+            ->deleteOriginal()
+            ->text('foo')
+            ->text('bar');
+
+        $this->assertJsonData([
+            'delete_original' => 'true',
+            'blocks' => self::TEST_BLOCKS,
+        ], $msg);
+    }
+
+    public function testCanOnlyApplyOneDirective(): void
+    {
+        $msg = Message::new()
+            ->text('foo')
+            ->text('bar')
+            ->ephemeral()
+            ->replaceOriginal()
+            ->deleteOriginal();
 
         $this->assertJsonData([
             'delete_original' => 'true',
@@ -83,39 +113,24 @@ class MessageTest extends TestCase
 
     public function testDoesNotApplyDirectivesWhenNotSet(): void
     {
-        $msg = new Message(['foo', 'bar']);
-        $data = $msg->toArray();
+        $data = Message::new()
+            ->text('foo')
+            ->text('bar')
+            ->toArray();
 
         $this->assertArrayNotHasKey('response_type', $data);
         $this->assertArrayNotHasKey('replace_original', $data);
         $this->assertArrayNotHasKey('delete_original', $data);
     }
 
-    public function testCanOnlyApplyOneDirective(): void
-    {
-        $msg = new Message(['foo', 'bar']);
-        $msg->ephemeral()
-            ->inChannel()
-            ->replaceOriginal()
-            ->deleteOriginal();
-
-        $data = $msg->toArray();
-
-        $this->assertArrayNotHasKey('response_type', $data);
-        $this->assertArrayNotHasKey('replace_original', $data);
-        $this->assertArrayHasKey('delete_original', $data);
-        $this->assertEquals('true', $data['delete_original']);
-    }
-
     public function testCanAddAttachments(): void
     {
-        $msg = new Message(
-            blocks: ['foo', 'bar'],
-            attachments: [
-                new Attachment(['foo', 'bar']),
-                new Attachment(['foo', 'bar']),
-            ],
-        );
+        $msg = Message::new()->tap(function (Message $msg) {
+            $msg->text('foo');
+            $msg->text('bar');
+            $msg->newAttachment()->text('foo')->text('bar');
+            $msg->newAttachment()->text('foo')->text('bar');
+        });
 
         $this->assertJsonData([
             'blocks' => self::TEST_BLOCKS,
@@ -125,10 +140,10 @@ class MessageTest extends TestCase
 
     public function testCanAddAttachmentsWithoutPrimaryBlocks(): void
     {
-        $msg = Message::new()->attachments(
-            new Attachment(['foo', 'bar']),
-            new Attachment(['foo', 'bar']),
-        );
+        $msg = Message::new()->tap(function (Message $msg) {
+            $msg->newAttachment()->text('foo')->text('bar');
+            $msg->newAttachment()->text('foo')->text('bar');
+        });
 
         $this->assertJsonData([
             'attachments' => self::TEST_ATTACHMENTS,
@@ -137,47 +152,49 @@ class MessageTest extends TestCase
 
     public function testCanAddFallbackText(): void
     {
-        $msg = new Message(blocks: ['foo', 'bar'], text: 'foo bar');
+        $msg = Message::new()
+            ->text('foo')
+            ->text('bar')
+            ->fallbackText('foo bar', true);
 
         $this->assertJsonData([
             'text' => 'foo bar',
+            'mrkdwn' => true,
             'blocks' => self::TEST_BLOCKS,
         ], $msg);
     }
 
-    public function testCanConvertToAnArray(): void
+    public function testMustAddBlocksOrAttachmentsOrFallbackText(): void
     {
-        $msg = new Message(['foo', 'bar'], MessageDirective::EPHEMERAL, 'foo bar');
-        $data = $msg->toArray();
-
-        $this->assertArrayHasKey('blocks', $data);
-        $this->assertEquals(self::TEST_BLOCKS, $data['blocks']);
-        $this->assertArrayHasKey('response_type', $data);
-        $this->assertEquals('ephemeral', $data['response_type']);
-        $this->assertArrayHasKey('text', $data);
-        $this->assertEquals('foo bar', $data['text']);
+        $this->expectException(Exception::class);
+        Message::new()->validate();
     }
 
-    public function testCanCreateFromAnArray(): void
+    public function testCanCreateBlockKitBuilderCompatibleMessageFromExisting(): void
     {
-        $data = [
+        $msg = Message::new()
+            ->ephemeral()
+            ->text('foo')
+            ->text('bar')
+            ->fallbackText('foo bar');
+
+        $this->assertJsonData([
+            'blocks' => self::TEST_BLOCKS,
+        ], $msg->asPreviewableMessage());
+    }
+
+    public function testHydration(): void
+    {
+        $json = [
             'response_type' => 'ephemeral',
             'text' => 'foo bar',
             'blocks' => self::TEST_BLOCKS,
             'attachments' => self::TEST_ATTACHMENTS,
         ];
 
-        $msg = Message::fromArray($data);
+        $msg = Message::fromArray($json);
 
-        $this->assertEquals($data, $msg->toArray());
-    }
-
-    public function testMustAddBlocksOrAttachmentsOrFallbackText(): void
-    {
-        $msg = new Message();
-
-        $this->expectException(Exception::class);
-        $msg->validate();
+        $this->assertEquals($json, $msg->toArray());
     }
 
     public function testCannotHaveInvalidDirective(): void

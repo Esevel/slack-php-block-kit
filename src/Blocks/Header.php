@@ -4,26 +4,66 @@ declare(strict_types=1);
 
 namespace SlackPhp\BlockKit\Blocks;
 
-use SlackPhp\BlockKit\Parts\PlainText;
-use SlackPhp\BlockKit\Property;
-use SlackPhp\BlockKit\Validation\{RequiresAllOf, ValidString};
+use SlackPhp\BlockKit\Exception;
+use SlackPhp\BlockKit\HydrationData;
+use SlackPhp\BlockKit\Partials\PlainText;
 
-#[RequiresAllOf('text')]
-class Header extends Block
+class Header extends BlockElement
 {
-    #[Property, ValidString(150)]
-    public ?PlainText $text;
+    /** @var PlainText */
+    private $text;
 
-    public function __construct(PlainText|string|null $text = null, ?string $blockId = null)
+    /**
+     * @param string|null $blockId
+     * @param string|null $text
+     */
+    public function __construct(?string $blockId = null, ?string $text = null)
     {
         parent::__construct($blockId);
-        $this->text($text);
+
+        if (!empty($text)) {
+            $this->text($text);
+        }
     }
 
-    public function text(PlainText|string|null $text): static
+    public function setText(PlainText $text): self
     {
-        $this->text = PlainText::wrap($text);
+        $this->text = $text->setParent($this);
 
         return $this;
+    }
+
+    /**
+     * @param string $text
+     * @param bool|null $emoji
+     * @return self
+     */
+    public function text(string $text, ?bool $emoji = null): self
+    {
+        return $this->setText(new PlainText($text, $emoji));
+    }
+
+    public function validate(): void
+    {
+        if (empty($this->text)) {
+            throw new Exception('Header must contain "text"');
+        }
+    }
+
+    public function toArray(): array
+    {
+        $data = parent::toArray();
+        $data['text'] = $this->text->toArray();
+
+        return $data;
+    }
+
+    protected function hydrate(HydrationData $data): void
+    {
+        if ($data->has('text')) {
+            $this->setText(PlainText::fromArray($data->useElement('text')));
+        }
+
+        parent::hydrate($data);
     }
 }
